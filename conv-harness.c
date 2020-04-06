@@ -594,18 +594,36 @@ void team_conv_sparse(float ***image, struct sparse_matrix ***kernels,
                 for (m = 0; m < nkernels; m++)
                 {
                     index = kernel->kernel_starts[m];
+                    // may not need to store this in a var since index - kend is small (less than 10 iirc)
                     int kend = kernel->kernel_starts[m + 1];
+
+                    // for some reason while loop here seem faster (need to double check)
                     while (index < kend)
                     {
                         int this_c = kernel->channel_numbers[index];
+
+                        /* 
+                            m is the most inner loop out of h and w, maybe
+                            using sse stuff we should have it such that 
+                            for(m) {
+                                for(h){
+                                    for(w){
+                                        such that we can write outputs to w in bulk using sse (addings, multiplications, storing & such)
+                                    }
+                                }
+                            }
+
+                            we also most likely could load kernel->kernel_starts[m + 1] - kernel->kernel_starts[m] (ie kend - startIndex)
+                            such that we load all kernel->channel_numbers and kernel->values at once with sse
+                            (also would then work with cachedImage values if we have all channel number values for our indeces) 
+                        */
                         output[m][h][w] += cachedImage[this_c] * kernel->values[index];
                         index += 1;
                     }
-                } // m
-            }     // (x,y)
-        }
+                }   // m
+            }      // (x,y)
+        }         // (w,h)
     }
-    // (w,h)
 }
 
 int main(int argc, char **argv)
