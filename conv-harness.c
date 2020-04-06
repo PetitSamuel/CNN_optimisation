@@ -559,8 +559,8 @@ void team_conv_sparse(float ***image, struct sparse_matrix ***kernels,
     int h, w, x, y, c, m, index;
     float value;
 
-    // initialize the output matrix to zero
-    #pragma omp parallel for if(nkernels > 256) collapse(3)
+// initialize the output matrix to zero
+#pragma omp parallel for if (nkernels > 256) collapse(3)
     for (m = 0; m < nkernels; m++)
     {
         for (h = 0; h < height; h++)
@@ -577,30 +577,35 @@ void team_conv_sparse(float ***image, struct sparse_matrix ***kernels,
     // height == width
     int imgSize = height * width;
     int kernelSize = kernel_order * kernel_order;
-    #pragma omp parallel for if(nkernels > 256) collapse(2) shared(image, kernels)
-    for (int wh = 0; wh < imgSize; ++wh)
+    #pragma omp parallel shared(image, kernels, m, index) if(nkernels > 256)
     {
-        for (int xy = 0; xy < kernelSize; xy++)
+        #pragma omp for nowait collapse(2)
+        for (int wh = 0; wh < imgSize; ++wh)
         {
-            w = wh / width;
-            h = wh % width;
-            x = xy / kernel_order;
-            y = xy % kernel_order;
-
-            float *cachedImage = image[w + x][h + y];
-            struct sparse_matrix *kernel = kernels[x][y];
-            for (m = 0; m < nkernels; m++)
+            for (int xy = 0; xy < kernelSize; xy++)
             {
-                index = kernel->kernel_starts[m];
-                int kend = kernel->kernel_starts[m + 1];
-                while(index < kend) {
-                    int this_c = kernel->channel_numbers[index];
-                    output[m][h][w] += cachedImage[this_c] * kernel->values[index];
-                    index += 1;
-                }
-            } // m
-        }     // (x,y)
-    }         // (w,h)
+                w = wh / width;
+                h = wh % width;
+                x = xy / kernel_order;
+                y = xy % kernel_order;
+
+                float *cachedImage = image[w + x][h + y];
+                struct sparse_matrix *kernel = kernels[x][y];
+                for (m = 0; m < nkernels; m++)
+                {
+                    index = kernel->kernel_starts[m];
+                    int kend = kernel->kernel_starts[m + 1];
+                    while (index < kend)
+                    {
+                        int this_c = kernel->channel_numbers[index];
+                        output[m][h][w] += cachedImage[this_c] * kernel->values[index];
+                        index += 1;
+                    }
+                } // m
+            }     // (x,y)
+        }
+    }
+    // (w,h)
 }
 
 int main(int argc, char **argv)
