@@ -591,10 +591,12 @@ void team_conv_sparse(float ***image, struct sparse_matrix ***kernels,
             struct sparse_matrix *kernel = kernels[x][y];
             for (m = 0; m < nkernels; m++)
             {
-                for (index = kernel->kernel_starts[m]; index < kernel->kernel_starts[m + 1]; index++)
-                {
+                index = kernel->kernel_starts[m];
+                int kend = kernel->kernel_starts[m + 1];
+                while(index < kend) {
                     int this_c = kernel->channel_numbers[index];
                     output[m][h][w] += cachedImage[this_c] * kernel->values[index];
+                    index += 1;
                 }
             } // m
         }     // (x,y)
