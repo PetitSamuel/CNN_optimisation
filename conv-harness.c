@@ -599,28 +599,29 @@ void team_conv_sparse(float ***image, struct sparse_matrix ***kernels,
     int wh, xy, kend;
     float *cachedImg;
 
-#pragma omp parallel for shared(image, kernels) private(cachedImg, w, h, m, index) if (nkernels > 128) schedule(static, 1)
+    #pragma omp parallel for
     for (m = 0; m < nkernels; m++)
     {
-        for (x = 0; x < kernel_order; x++)
-            for (y = 0; y < kernel_order; y++)
+        for (xy = 0; xy < kernelSize; xy++)
+        {
+            for (wh = 0; wh < imgSize; wh++)
             {
+                x = xy / kernel_order;
+                y = xy % kernel_order;
                 kernel = kernels[x][y];
-                for (wh = 0; wh < imgSize; wh++)
-                {
-                    w = wh / width;
-                    h = wh % width;
+                w = wh / width;
+                h = wh % width;
 
-                    cachedImg = image[w + x][h + y];
-                    index = kernel->kernel_starts[m];
-                    kend = kernel->kernel_starts[m + 1];
-                    while (index < kend)
-                    {
-                        output[m][h][w] += cachedImg[kernel->channel_numbers[index]] * kernel->values[index];
-                        index++;
-                    }
+                cachedImg = image[w + x][h + y];
+                index = kernel->kernel_starts[m];
+                kend = kernel->kernel_starts[m + 1];
+                while (index < kend)
+                {
+                    output[m][h][w] += cachedImg[kernel->channel_numbers[index]] * kernel->values[index];
+                    index++;
                 }
             }
+        }
     }
 }
 
