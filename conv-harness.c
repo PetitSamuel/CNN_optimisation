@@ -559,70 +559,68 @@ void team_conv_sparse(float ***image, struct sparse_matrix ***kernels,
     int h, w, x, y, c, m, index;
     float value;
 
-// initialize the output matrix to zero
-#pragma omp parallel for if (nkernels > 256) collapse(3)
-    for (m = 0; m < nkernels; m++)
-    {
-        for (h = 0; h < height; h++)
-        {
-            for (w = 0; w < width; w++)
-            {
-                output[m][h][w] = 0.0;
-            }
-        }
-    }
-
     DEBUGGING(fprintf(stderr, "w=%d, h=%d, c=%d\n", w, h, c));
     // now compute multichannel, multikernel convolution
     // height == width
     int imgSize = height * width;
     int kernelSize = kernel_order * kernel_order;
-    #pragma omp parallel shared(image, kernels, m, index) if(nkernels > 256)
+
+    // #pragma omp parallel for shared(image, kernels) private(w, h, m, index) if (nkernels > 128) schedule(static, 1)
+    /*
+    for (int wh = 0; wh < imgSize; ++wh)
     {
-        #pragma omp for nowait collapse(2)
-        for (int wh = 0; wh < imgSize; ++wh)
+        w = wh / width;
+        h = wh % width;
+        for (int xy = 0; xy < kernelSize; xy++)
         {
-            for (int xy = 0; xy < kernelSize; xy++)
+            x = xy / kernel_order;
+            y = xy % kernel_order;
+
+            float *cachedImage = image[w + x][h + y];
+            struct sparse_matrix *kernel = kernels[x][y];
+            for (m = 0; m < nkernels; m += 4)
             {
-                w = wh / width;
-                h = wh % width;
-                x = xy / kernel_order;
-                y = xy % kernel_order;
-
-                float *cachedImage = image[w + x][h + y];
-                struct sparse_matrix *kernel = kernels[x][y];
-                for (m = 0; m < nkernels; m++)
+                //__m128 indeces=_mm_set1_ps(kernel->kernel_starts[m]); 
+                index = kernel->kernel_starts[m];
+                // may not need to store this in a var since index - kend is small (less than 10 iirc)
+                int kend = kernel->kernel_starts[m + 1];
+                printf("%d\n", kend - index);
+                while (index < kend)
                 {
-                    index = kernel->kernel_starts[m];
-                    // may not need to store this in a var since index - kend is small (less than 10 iirc)
-                    int kend = kernel->kernel_starts[m + 1];
+                    int this_c = kernel->channel_numbers[index];
+                    output[m][h][w] += cachedImage[this_c] * kernel->values[index];
+                    index += 1;
+                }
+            } // m
+        }     // (x,y)
+    }         // (w,h)
+    */
+    struct sparse_matrix *kernel;
+    int wh, xy, kend;
+    float *cachedImg;
 
-                    // for some reason while loop here seem faster (need to double check)
+#pragma omp parallel for shared(image, kernels) private(cachedImg, w, h, m, index) if (nkernels > 128) schedule(static, 1)
+    for (m = 0; m < nkernels; m++)
+    {
+        for (x = 0; x < kernel_order; x++)
+            for (y = 0; y < kernel_order; y++)
+            {
+                kernel = kernels[x][y];
+                for (wh = 0; wh < imgSize; wh++)
+                {
+                    w = wh / width;
+                    h = wh % width;
+
+                    cachedImg = image[w + x][h + y];
+                    index = kernel->kernel_starts[m];
+                    kend = kernel->kernel_starts[m + 1];
                     while (index < kend)
                     {
-                        int this_c = kernel->channel_numbers[index];
-
-                        /* 
-                            m is the most inner loop out of h and w, maybe
-                            using sse stuff we should have it such that 
-                            for(m) {
-                                for(h){
-                                    for(w){
-                                        such that we can write outputs to w in bulk using sse (addings, multiplications, storing & such)
-                                    }
-                                }
-                            }
-
-                            we also most likely could load kernel->kernel_starts[m + 1] - kernel->kernel_starts[m] (ie kend - startIndex)
-                            such that we load all kernel->channel_numbers and kernel->values at once with sse
-                            (also would then work with cachedImage values if we have all channel number values for our indeces) 
-                        */
-                        output[m][h][w] += cachedImage[this_c] * kernel->values[index];
-                        index += 1;
+                        output[m][h][w] += cachedImg[kernel->channel_numbers[index]] * kernel->values[index];
+                        index++;
                     }
-                }   // m
-            }      // (x,y)
-        }         // (w,h)
+                }
+            }
     }
 }
 
