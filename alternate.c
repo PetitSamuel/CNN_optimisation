@@ -566,9 +566,9 @@ void team_conv_sparse(float ***image, struct sparse_matrix ***kernels,
     int kernelSize = kernel_order * kernel_order;
 
     struct sparse_matrix *kernel;
-    int wh, xy, kend;
-    float *cachedImg;
-    float sum;
+    int xy, tempIndex, kend;
+    float *cachedImg, sum;
+    float **outputRow;
     int *cNumbs;
 
     __m128 kVals, imgVals;
@@ -576,43 +576,51 @@ void team_conv_sparse(float ***image, struct sparse_matrix ***kernels,
 #pragma omp parallel for schedule(static, 1)
     for (m = 0; m < nkernels; m++)
     {
+        outputRow = output[m];
+
         for (xy = 0; xy < kernelSize; xy++)
         {
             x = xy / kernel_order;
             y = xy % kernel_order;
             kernel = kernels[x][y];
+            index = kernel->kernel_starts[m];
+
+            tempIndex = index;
+            kend = kernel->kernel_starts[m + 1];
             cNumbs = kernel->channel_numbers;
-            for (wh = 0; wh < imgSize; wh++)
+
+            for (w = 0; w < width; w++)
             {
-                w = wh / width;
-                h = wh % width;
-
-                cachedImg = image[w + x][h + y];
-                index = kernel->kernel_starts[m];
-                kend = kernel->kernel_starts[m + 1];
-
-                if (kend - index == 4)
+                for (h = 0; h < height; h++)
                 {
-                    kVals = _mm_loadu_ps(&kernel->values[index]);
-                    imgVals = _mm_setr_ps(cachedImg[cNumbs[index]],
-                                          cachedImg[cNumbs[index + 1]],
-                                          cachedImg[cNumbs[index + 2]],
-                                          cachedImg[cNumbs[index + 3]]);
+                    cachedImg = image[w + x][h + y];
+                    tempIndex = index;
 
-                    kVals = _mm_mul_ps(kVals, imgVals);
-                    kVals = _mm_hadd_ps(kVals, kVals);
-                    kVals = _mm_hadd_ps(kVals, kVals);
-                    _mm_store_ss(&sum, kVals);
-                    output[m][h][w] += sum;
-                }
-                else
-                {
-                    while (index < kend)
+                    if (kend - index == 4)
                     {
-                        output[m][h][w] += cachedImg[cNumbs[index]] * kernel->values[index++];
+                        kVals = _mm_loadu_ps(&kernel->values[index]);
+                        imgVals = _mm_setr_ps(cachedImg[cNumbs[index]],
+                                              cachedImg[cNumbs[index + 1]],
+                                              cachedImg[cNumbs[index + 2]],
+                                              cachedImg[cNumbs[index + 3]]);
+
+                        kVals = _mm_mul_ps(kVals, imgVals);
+                        kVals = _mm_hadd_ps(kVals, kVals);
+                        kVals = _mm_hadd_ps(kVals, kVals);
+                        _mm_store_ss(&sum, kVals);
+                        output[m][h][w] += sum;
+                    }
+                    else
+                    {
+                        while (tempIndex < kend)
+                        {
+                            outputRow[h][w] += cachedImg[cNumbs[tempIndex]] * kernel->values[tempIndex++];
+                        }
                     }
                 }
             }
+
+            output[m] = outputRow;
         }
     }
 }
@@ -695,7 +703,6 @@ int main(int argc, char **argv)
         team_conv_sparse(image, sparse_kernels, output, width,
                          height, nchannels, nkernels, kernel_order);
         gettimeofday(&stop_time, NULL);
-
         gettimeofday(&start_time2, NULL);
 
         multichannel_conv_sparse(image, sparse_kernels, outputNormal, width,
@@ -707,7 +714,6 @@ int main(int argc, char **argv)
         mul_time2 = (stop_time2.tv_sec - start_time2.tv_sec) * 1000000L +
                     (stop_time2.tv_usec - start_time2.tv_usec);
         printf("multichannel_conv_sparse time: %lld microseconds\n", mul_time2);
-
         printf("Checking team_conv_sparse result:\n");
         check_result(output, control_output, nkernels, width, height);
         printf("difference between team_conv_sparse multichannel_conv_sparse %lld\n", mul_time - mul_time2);
