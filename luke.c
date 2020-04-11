@@ -556,7 +556,7 @@ void team_conv_sparse(float ***image, struct sparse_matrix ***kernels,
                       float ***output, int width, int height,
                       int nchannels, int nkernels, int kernel_order)
 {
-    int h, w, x, y, c, m, index = 0;
+    int h, w, x, y, c, m, index;
     float value;
 
     DEBUGGING(fprintf(stderr, "w=%d, h=%d, c=%d\n", w, h, c));
@@ -565,78 +565,31 @@ void team_conv_sparse(float ***image, struct sparse_matrix ***kernels,
     int imgSize = height * width;
     int kernelSize = kernel_order * kernel_order;
 
-    // #pragma omp parallel for shared(image, kernels) private(w, h, m, index) if (nkernels > 128) schedule(static, 1)
-    /*
-    for (int wh = 0; wh < imgSize; ++wh)
+    struct sparse_matrix *kernel;
+    int wh, xy, kend;
+    float *cachedImg;
+
+#pragma omp parallel for schedule(static, 1)
+    for (m = 0; m < nkernels; m++)
     {
-        w = wh / width;
-        h = wh % width;
-        for (int xy = 0; xy < kernelSize; xy++)
+        for (xy = 0; xy < kernelSize; xy++)
         {
             x = xy / kernel_order;
             y = xy % kernel_order;
+            kernel = kernels[x][y];
 
-            float *cachedImage = image[w + x][h + y];
-            struct sparse_matrix *kernel = kernels[x][y];
-            for (m = 0; m < nkernels; m += 4)
+            for (wh = 0; wh < imgSize; wh++)
             {
-                //__m128 indeces=_mm_set1_ps(kernel->kernel_starts[m]); 
+                w = wh / width;
+                h = wh % width;
+
+                cachedImg = image[w + x][h + y];
                 index = kernel->kernel_starts[m];
-                // may not need to store this in a var since index - kend is small (less than 10 iirc)
-                int kend = kernel->kernel_starts[m + 1];
-                printf("%d\n", kend - index);
+                kend = kernel->kernel_starts[m + 1];
                 while (index < kend)
                 {
-                    int this_c = kernel->channel_numbers[index];
-                    output[m][h][w] += cachedImage[this_c] * kernel->values[index];
-                    index += 1;
-                }
-            } // m
-        }     // (x,y)
-    }         // (w,h)
-    */
-    int wh, xy, kend = 0;
-    float *cachedImg;
-    w = 0;
-    h = 0;
-    x = 0;
-    y = 0;
-    index = 0;
-    wh = 0;
-    xy = 0;
-    // #pragma omp parallel for shared(image, kernels) private(cachedImg, w, h, m, index) if (nkernels > 128) schedule(static, 1)
-    index = kernels[0][0]->kernel_starts[0];
-    kend = kernels[0][0]->kernel_starts[1];
-
-    m = 0;
-    // #pragma omp parallel for shared(image, kernels) private(index, wh, w, h, xy, x, y) schedule(dynamic, 1)
-    while (m < nkernels)
-    {
-        printf("index: %d m: %d\n", index, m);
-        output[m][h][w] += image[w + x][h + y][kernels[x][y]->channel_numbers[index]] * kernels[x][y]->values[index];
-        index++;
-        if (index >= kernels[x][y]->kernel_starts[m + 1])
-        {
-            index = 0;
-            wh++;
-            w = wh / width;
-            h = wh % width;
-            if (wh >= imgSize)
-            {
-                wh = 0;
-                w = 0;
-                h = 0;
-                xy++;
-                x = xy / kernel_order;
-                y = xy % width;
-
-                if (xy >= kernelSize)
-                {
-                    xy = 0;
-                    x = 0;
-                    y = 0;
-                    m++;
-                    index = kernels[x][y]->kernel_starts[m];
+                    output[m][h][w] += cachedImg[kernel->channel_numbers[index]] * kernel->values[index];
+                    index++;
                 }
             }
         }
