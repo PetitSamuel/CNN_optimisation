@@ -573,7 +573,7 @@ void team_conv_sparse(float ***image, struct sparse_matrix ***kernels,
 
     __m128 kVals, imgVals;
 
-#pragma omp parallel for schedule(static, 1)
+    #pragma omp parallel for 
     for (m = 0; m < nkernels; m++)
     {
         for (xy = 0; xy < kernelSize; xy++)

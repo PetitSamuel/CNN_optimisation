@@ -568,16 +568,13 @@ void team_conv_sparse(float ***image, struct sparse_matrix ***kernels,
     struct sparse_matrix *kernel;
     int xy, tempIndex, kend;
     float *cachedImg, sum;
-    float **outputRow;
     int *cNumbs;
 
     __m128 kVals, imgVals;
 
-#pragma omp parallel for schedule(static, 1)
+#pragma omp parallel for private(m, xy, x, y, kernel, index, tempIndex, kend, cNumbs, cachedImg, kVals, imgVals, sum,h,w) shared(image, kernels) collapse(2)
     for (m = 0; m < nkernels; m++)
     {
-        outputRow = output[m];
-
         for (xy = 0; xy < kernelSize; xy++)
         {
             x = xy / kernel_order;
@@ -614,13 +611,13 @@ void team_conv_sparse(float ***image, struct sparse_matrix ***kernels,
                     {
                         while (tempIndex < kend)
                         {
-                            outputRow[h][w] += cachedImg[cNumbs[tempIndex]] * kernel->values[tempIndex++];
+                            output[m][h][w] += cachedImg[cNumbs[tempIndex]] * kernel->values[tempIndex++];
                         }
                     }
                 }
             }
 
-            output[m] = outputRow;
+            
         }
     }
 }
@@ -699,21 +696,25 @@ int main(int argc, char **argv)
     if (nz_ratio > 1)
     { // we're working on a sparse matrix
         /* perform student team's sparse multichannel convolution */
+
         gettimeofday(&start_time, NULL);
         team_conv_sparse(image, sparse_kernels, output, width,
                          height, nchannels, nkernels, kernel_order);
         gettimeofday(&stop_time, NULL);
+        
         gettimeofday(&start_time2, NULL);
 
         multichannel_conv_sparse(image, sparse_kernels, outputNormal, width,
                                  height, nchannels, nkernels, kernel_order);
         gettimeofday(&stop_time2, NULL);
-        mul_time = (stop_time.tv_sec - start_time.tv_sec) * 1000000L +
-                   (stop_time.tv_usec - start_time.tv_usec);
-        printf("team_conv_sparse time: %lld microseconds\n", mul_time);
+    
         mul_time2 = (stop_time2.tv_sec - start_time2.tv_sec) * 1000000L +
                     (stop_time2.tv_usec - start_time2.tv_usec);
         printf("multichannel_conv_sparse time: %lld microseconds\n", mul_time2);
+        
+        mul_time = (stop_time.tv_sec - start_time.tv_sec) * 1000000L +
+                   (stop_time.tv_usec - start_time.tv_usec);
+        printf("team_conv_sparse time: %lld microseconds\n", mul_time);
         printf("Checking team_conv_sparse result:\n");
         check_result(output, control_output, nkernels, width, height);
         printf("difference between team_conv_sparse multichannel_conv_sparse %lld\n", mul_time - mul_time2);
