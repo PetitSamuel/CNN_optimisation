@@ -572,7 +572,7 @@ void team_conv_sparse_sse(float ***image, struct sparse_matrix ***kernels,
 
     __m128 kVals, imgVals;
 
-#pragma omp parallel for private(m, xy, x, y, kernel, index, tempIndex, kend, cNumbs, cachedImg, kVals, imgVals, sum, h, w) shared(image, kernels) collapse(2)
+#pragma omp parallel for /*private(m, xy, x, y, kernel, index, tempIndex, kend, cNumbs, cachedImg, kVals, imgVals, sum, h, w) shared(image, kernels)*/ collapse(2)
     for (m = 0; m < nkernels; m++)
     {
         for (xy = 0; xy < kernelSize; xy++)
@@ -581,7 +581,6 @@ void team_conv_sparse_sse(float ***image, struct sparse_matrix ***kernels,
             y = xy % kernel_order;
             kernel = kernels[x][y];
             index = kernel->kernel_starts[m];
-
             tempIndex = index;
             kend = kernel->kernel_starts[m + 1];
             cNumbs = kernel->channel_numbers;
@@ -593,15 +592,16 @@ void team_conv_sparse_sse(float ***image, struct sparse_matrix ***kernels,
                     cachedImg = image[w + x][h + y];
                     tempIndex = index;
 
-                    if (((kend - index) % 4) == 0 && index % 4 == 0)
+                    if (index % 4 == 0 && kend % 4 == 0 && kend - index >= 4)
                     {
-                        for (int i = index; i < kend; i += 4)
+
+                        for (; tempIndex < kend; tempIndex += 4)
                         {
-                            kVals = _mm_load_ps(&kernel->values[i]);
-                            imgVals = _mm_setr_ps(cachedImg[cNumbs[i]],
-                                                  cachedImg[cNumbs[i + 1]],
-                                                  cachedImg[cNumbs[i + 2]],
-                                                  cachedImg[cNumbs[i + 3]]);
+                            kVals = _mm_load_ps(&kernel->values[tempIndex]);
+                            imgVals = _mm_setr_ps(cachedImg[cNumbs[tempIndex]],
+                                                  cachedImg[cNumbs[tempIndex + 1]],
+                                                  cachedImg[cNumbs[tempIndex + 2]],
+                                                  cachedImg[cNumbs[tempIndex + 3]]);
 
                             kVals = _mm_mul_ps(kVals, imgVals);
                             kVals = _mm_hadd_ps(kVals, kVals);
@@ -611,14 +611,29 @@ void team_conv_sparse_sse(float ***image, struct sparse_matrix ***kernels,
                             output[m][h][w] += sum;
                         }
                     }
-                    else
-                    {
 
-                        while (tempIndex < kend)
-                        {
-                            output[m][h][w] += cachedImg[cNumbs[tempIndex]] * kernel->values[tempIndex];
-                            tempIndex++;
-                        }
+                    /*
+                    if (tempIndex % 4 == 0 && kend - tempIndex == 4)
+                    {
+                        kVals = _mm_load_ps(&kernel->values[tempIndex]);
+                        imgVals = _mm_setr_ps(cachedImg[cNumbs[tempIndex]],
+                                              cachedImg[cNumbs[tempIndex + 1]],
+                                              cachedImg[cNumbs[tempIndex + 2]],
+                                              cachedImg[cNumbs[tempIndex + 3]]);
+
+                        kVals = _mm_mul_ps(kVals, imgVals);
+                        kVals = _mm_hadd_ps(kVals, kVals);
+                        kVals = _mm_hadd_ps(kVals, kVals);
+
+                        _mm_store_ss(&sum, kVals);
+                        output[m][h][w] += sum;
+                        tempIndex += 4;
+                    }
+                    */
+                    while (tempIndex < kend)
+                    {
+                        output[m][h][w] += cachedImg[cNumbs[tempIndex]] * kernel->values[tempIndex];
+                        tempIndex++;
                     }
                 }
             }
