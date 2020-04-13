@@ -593,10 +593,11 @@ void team_conv_sparse_sse(float ***image, struct sparse_matrix ***kernels,
                     cachedImg = image[w + x][h + y];
                     tempIndex = index;
 
-                    if ((kend - index % 4) == 0 && index % 4 == 0)
+                    if (((kend - index) % 4) == 0 && index % 4 == 0)
                     {
                         for (int i = index; i < kend; i += 4)
                         {
+
                             kVals = _mm_load_ps(&kernel->values[i]);
                             imgVals = _mm_setr_ps(cachedImg[cNumbs[i]],
                                                   cachedImg[cNumbs[i + 1]],
@@ -755,7 +756,7 @@ int main(int argc, char **argv)
         /* perform student team's sparse multichannel convolution */
         gettimeofday(&start_time, NULL);
         team_conv_sparse_sse(image, sparse_kernels, output, width,
-                         height, nchannels, nkernels, kernel_order);
+                             height, nchannels, nkernels, kernel_order);
         gettimeofday(&stop_time, NULL);
 
         gettimeofday(&start_time2, NULL);
