@@ -597,7 +597,6 @@ void team_conv_sparse_sse(float ***image, struct sparse_matrix ***kernels,
                     {
                         for (int i = index; i < kend; i += 4)
                         {
-
                             kVals = _mm_load_ps(&kernel->values[i]);
                             imgVals = _mm_setr_ps(cachedImg[cNumbs[i]],
                                                   cachedImg[cNumbs[i + 1]],
