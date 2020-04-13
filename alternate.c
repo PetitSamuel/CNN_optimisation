@@ -552,7 +552,7 @@ void multichannel_conv_sparse(float ***image, struct sparse_matrix ***kernels,
 }
 
 /* the fast version of sparse convolution written by the team */
-void team_conv_sparse_sse(float ***image, struct sparse_matrix ***kernels,
+void team_conv_sparse(float ***image, struct sparse_matrix ***kernels,
                           float ***output, int width, int height,
                           int nchannels, int nkernels, int kernel_order)
 {
@@ -560,114 +560,59 @@ void team_conv_sparse_sse(float ***image, struct sparse_matrix ***kernels,
     float value;
 
     DEBUGGING(fprintf(stderr, "w=%d, h=%d, c=%d\n", w, h, c));
-    // now compute multichannel, multikernel convolution
-    // height == width
-    int imgSize = height * width;
-    int kernelSize = kernel_order * kernel_order;
-
     struct sparse_matrix *kernel;
-    int xy, tempIndex, kend;
-    float *cachedImg, sum;
+    int kernelSize = kernel_order * kernel_order;
+    int tempIndex, kend;
+    float *cachedImg;
     int *cNumbs;
-
     __m128 kVals, imgVals;
 
-#pragma omp parallel for /*private(m, xy, x, y, kernel, index, tempIndex, kend, cNumbs, cachedImg, kVals, imgVals, sum, h, w) shared(image, kernels)*/ collapse(2)
+// in my testing schedule static can be fast than collapse (3) but on average & with big inputs collapse is faster
+// i've experimented making specific variables shared / private this combination seemed to work best
+#pragma omp parallel for private(m, x, y, h, w, index, tempIndex, kend, kVals, imgVals) shared(image, kernels, cachedImg, kernel, output) collapse(3)
     for (m = 0; m < nkernels; m++)
     {
-        for (xy = 0; xy < kernelSize; xy++)
+        for (x = 0; x < kernel_order; x++)
         {
-            x = xy / kernel_order;
-            y = xy % kernel_order;
-            kernel = kernels[x][y];
-            index = kernel->kernel_starts[m];
-            tempIndex = index;
-            kend = kernel->kernel_starts[m + 1];
-            cNumbs = kernel->channel_numbers;
-
-            for (w = 0; w < width; w++)
+            for (y = 0; y < kernel_order; y++)
             {
-                for (h = 0; h < height; h++)
+                kernel = kernels[x][y];
+                index = kernel->kernel_starts[m];
+                kend = kernel->kernel_starts[m + 1];
+                cNumbs = kernel->channel_numbers;
+                
+                for (w = 0; w < width; w++)
                 {
-                    cachedImg = image[w + x][h + y];
-                    tempIndex = index;
-                    
-                    if ((kend - index) == 4 && index % 4 == 0)
+                    for (h = 0; h < height; h++)
                     {
-                        kVals = _mm_load_ps(&kernel->values[index]);
-                        imgVals = _mm_setr_ps(cachedImg[cNumbs[index]],
-                                              cachedImg[cNumbs[index + 1]],
-                                              cachedImg[cNumbs[index + 2]],
-                                              cachedImg[cNumbs[index + 3]]);
-
-                        kVals = _mm_mul_ps(kVals, imgVals);
-                        kVals = _mm_hadd_ps(kVals, kVals);
-                        kVals = _mm_hadd_ps(kVals, kVals);
-
-                        _mm_store_ss(&sum, kVals);
-                        output[m][h][w] += sum;
-                    }
-                    else
-                    {
-
+                        cachedImg = image[w + x][h + y];
+                        tempIndex = index;
                         while (tempIndex < kend)
                         {
-                            output[m][h][w] += cachedImg[cNumbs[tempIndex]] * kernel->values[tempIndex];
-                            tempIndex++;
+                            if (kend - tempIndex >= 4 && tempIndex % 4 == 0)
+                            {
+                                kVals = _mm_load_ps(&kernel->values[tempIndex]);
+                                imgVals = _mm_setr_ps(cachedImg[cNumbs[tempIndex]],
+                                                      cachedImg[cNumbs[tempIndex + 1]],
+                                                      cachedImg[cNumbs[tempIndex + 2]],
+                                                      cachedImg[cNumbs[tempIndex + 3]]);
+
+                                kVals = _mm_mul_ps(kVals, imgVals);
+                                // seems that result needs to be defined here otherwise output is wrong
+                                float result[4];
+                                _mm_storeu_ps(result, kVals);
+                                output[m][h][w] += result[0];
+                                output[m][h][w] += result[1];
+                                output[m][h][w] += result[2];
+                                output[m][h][w] += result[3];
+                                tempIndex += 4;
+                            }
+                            else
+                            {
+                                output[m][h][w] += cachedImg[cNumbs[tempIndex]] * kernel->values[tempIndex];
+                                tempIndex++;
+                            }
                         }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/* the fast version of sparse convolution written by the team */
-void team_conv_sparse(float ***image, struct sparse_matrix ***kernels,
-                      float ***output, int width, int height,
-                      int nchannels, int nkernels, int kernel_order)
-{
-    int h, w, x, y, c, m, index;
-    float value;
-
-    DEBUGGING(fprintf(stderr, "w=%d, h=%d, c=%d\n", w, h, c));
-    // now compute multichannel, multikernel convolution
-    // height == width
-    int imgSize = height * width;
-    int kernelSize = kernel_order * kernel_order;
-
-    struct sparse_matrix *kernel;
-    int xy, tempIndex, kend;
-    float *cachedImg, sum;
-    int *cNumbs;
-
-    __m128 kVals, imgVals;
-
-#pragma omp parallel for private(m, xy, x, y, kernel, index, tempIndex, kend, cNumbs, cachedImg, kVals, imgVals, sum, h, w) shared(image, kernels) collapse(2)
-    for (m = 0; m < nkernels; m++)
-    {
-        for (xy = 0; xy < kernelSize; xy++)
-        {
-            x = xy / kernel_order;
-            y = xy % kernel_order;
-            kernel = kernels[x][y];
-            index = kernel->kernel_starts[m];
-
-            tempIndex = index;
-            kend = kernel->kernel_starts[m + 1];
-            cNumbs = kernel->channel_numbers;
-
-            for (w = 0; w < width; w++)
-            {
-                for (h = 0; h < height; h++)
-                {
-                    cachedImg = image[w + x][h + y];
-                    tempIndex = index;
-
-                    while (tempIndex < kend)
-                    {
-                        output[m][h][w] += cachedImg[cNumbs[tempIndex]] * kernel->values[tempIndex];
-                        tempIndex++;
                     }
                 }
             }
@@ -750,14 +695,14 @@ int main(int argc, char **argv)
     { // we're working on a sparse matrix
         /* perform student team's sparse multichannel convolution */
         gettimeofday(&start_time, NULL);
-        team_conv_sparse_sse(image, sparse_kernels, output, width,
+        team_conv_sparse(image, sparse_kernels, output, width,
                              height, nchannels, nkernels, kernel_order);
         gettimeofday(&stop_time, NULL);
 
         gettimeofday(&start_time2, NULL);
 
         multichannel_conv_sparse(image, sparse_kernels, outputNormal, width,
-                                 height, nchannels, nkernels, kernel_order);
+                         height, nchannels, nkernels, kernel_order);
         gettimeofday(&stop_time2, NULL);
         mul_time = (stop_time.tv_sec - start_time.tv_sec) * 1000000L +
                    (stop_time.tv_usec - start_time.tv_usec);
