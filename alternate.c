@@ -569,7 +569,7 @@ void team_conv_sparse(float ***image, struct sparse_matrix ***kernels,
 
 // in my testing schedule static can be fast than collapse (3) but on average & with big inputs collapse is faster
 // i've experimented making specific variables shared / private this combination seemed to work best
-#pragma omp parallel for
+#pragma omp parallel for private(m, x, y, kernel, index, kend, cNumbs, w, h, cachedImg, tempIndex, kVals, imgVals) shared(image, kernels, output) collapse(3)
     for (m = 0; m < nkernels; m++)
     {
         for (x = 0; x < kernel_order; x++)
@@ -581,6 +581,8 @@ void team_conv_sparse(float ***image, struct sparse_matrix ***kernels,
                 kend = kernel->kernel_starts[m + 1];
                 cNumbs = kernel->channel_numbers;
                 
+                // this seemed to sometimes make it faster, try for different (probably high) width/heights
+                //#pragma omp parallel for collapse(2)
                 for (w = 0; w < width; w++)
                 {
                     for (h = 0; h < height; h++)
