@@ -753,28 +753,31 @@ int main(int argc, char **argv)
     if (nz_ratio > 1)
     { // we're working on a sparse matrix
         /* perform student team's sparse multichannel convolution */
-
+        /*
         gettimeofday(&start_time, NULL);
         team_conv_sparse(image, sparse_kernels, output, width,
                          height, nchannels, nkernels, kernel_order);
         gettimeofday(&stop_time, NULL);
-
+*/
         gettimeofday(&start_time2, NULL);
 
         team_conv_sparse_sse(image, sparse_kernels, outputNormal, width,
-                                 height, nchannels, nkernels, kernel_order);
+                             height, nchannels, nkernels, kernel_order);
         gettimeofday(&stop_time2, NULL);
 
         mul_time2 = (stop_time2.tv_sec - start_time2.tv_sec) * 1000000L +
                     (stop_time2.tv_usec - start_time2.tv_usec);
         printf("team_conv_sparse_sse time: %lld microseconds\n", mul_time2);
-
+        /*
         mul_time = (stop_time.tv_sec - start_time.tv_sec) * 1000000L +
                    (stop_time.tv_usec - start_time.tv_usec);
         printf("team_conv_sparse time: %lld microseconds\n", mul_time);
-        printf("Checking team_conv_sparse result:\n");
-        check_result(output, control_output, nkernels, width, height);
+        
         printf("difference between team_conv_sparse multichannel_conv_sparse %lld\n", mul_time - mul_time2);
+        
+        */
+        printf("Checking team_conv_sparse_sse result:\n");
+        check_result(outputNormal, control_output, nkernels, width, height);
     }
     else
     { // we're working on a dense matrix
