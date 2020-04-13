@@ -591,35 +591,14 @@ void team_conv_sparse_sse(float ***image, struct sparse_matrix ***kernels,
                 {
                     cachedImg = image[w + x][h + y];
                     tempIndex = index;
-
-                    if (index % 4 == 0 && kend % 4 == 0 && kend - index >= 4)
+                    
+                    if ((kend - index) == 4 && index % 4 == 0)
                     {
-
-                        for (; tempIndex < kend; tempIndex += 4)
-                        {
-                            kVals = _mm_load_ps(&kernel->values[tempIndex]);
-                            imgVals = _mm_setr_ps(cachedImg[cNumbs[tempIndex]],
-                                                  cachedImg[cNumbs[tempIndex + 1]],
-                                                  cachedImg[cNumbs[tempIndex + 2]],
-                                                  cachedImg[cNumbs[tempIndex + 3]]);
-
-                            kVals = _mm_mul_ps(kVals, imgVals);
-                            kVals = _mm_hadd_ps(kVals, kVals);
-                            kVals = _mm_hadd_ps(kVals, kVals);
-
-                            _mm_store_ss(&sum, kVals);
-                            output[m][h][w] += sum;
-                        }
-                    }
-
-                    /*
-                    if (tempIndex % 4 == 0 && kend - tempIndex == 4)
-                    {
-                        kVals = _mm_load_ps(&kernel->values[tempIndex]);
-                        imgVals = _mm_setr_ps(cachedImg[cNumbs[tempIndex]],
-                                              cachedImg[cNumbs[tempIndex + 1]],
-                                              cachedImg[cNumbs[tempIndex + 2]],
-                                              cachedImg[cNumbs[tempIndex + 3]]);
+                        kVals = _mm_load_ps(&kernel->values[index]);
+                        imgVals = _mm_setr_ps(cachedImg[cNumbs[index]],
+                                              cachedImg[cNumbs[index + 1]],
+                                              cachedImg[cNumbs[index + 2]],
+                                              cachedImg[cNumbs[index + 3]]);
 
                         kVals = _mm_mul_ps(kVals, imgVals);
                         kVals = _mm_hadd_ps(kVals, kVals);
@@ -627,13 +606,15 @@ void team_conv_sparse_sse(float ***image, struct sparse_matrix ***kernels,
 
                         _mm_store_ss(&sum, kVals);
                         output[m][h][w] += sum;
-                        tempIndex += 4;
                     }
-                    */
-                    while (tempIndex < kend)
+                    else
                     {
-                        output[m][h][w] += cachedImg[cNumbs[tempIndex]] * kernel->values[tempIndex];
-                        tempIndex++;
+
+                        while (tempIndex < kend)
+                        {
+                            output[m][h][w] += cachedImg[cNumbs[tempIndex]] * kernel->values[tempIndex];
+                            tempIndex++;
+                        }
                     }
                 }
             }
