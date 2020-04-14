@@ -552,6 +552,75 @@ void multichannel_conv_sparse(float ***image, struct sparse_matrix ***kernels,
 }
 
 /* the fast version of sparse convolution written by the team */
+void team_conv_sparse_if(float ***image, struct sparse_matrix ***kernels,
+                          float ***output, int width, int height,
+                          int nchannels, int nkernels, int kernel_order)
+{
+    int h, w, x, y, c, m, index;
+    float value;
+
+    DEBUGGING(fprintf(stderr, "w=%d, h=%d, c=%d\n", w, h, c));
+    struct sparse_matrix *kernel;
+    int kernelSize = kernel_order * kernel_order;
+    int tempIndex, kend;
+    int *cNumbs;
+    __m128 kVals, imgVals;
+
+// in my testing schedule static can be fast than collapse (3) but on average & with big inputs collapse is faster
+// i've experimented making specific variables shared / private this combination seemed to work best
+#pragma omp parallel for if(kernelSize > 128 || width > 300) private(m, x, y, index, kend, w, h, tempIndex, kVals, imgVals, cNumbs,kernel) shared(image, kernels, output) collapse(3)
+    for (m = 0; m < nkernels; m++)
+    {
+        for (x = 0; x < kernel_order; x++)
+        {
+            for (y = 0; y < kernel_order; y++)
+            {
+                kernel = kernels[x][y];
+                index = kernel->kernel_starts[m];
+                kend = kernel->kernel_starts[m + 1];
+                cNumbs = kernel->channel_numbers;
+                
+                // this seemed to sometimes make it faster, try for different (probably high) width/heights
+                //#pragma omp parallel for collapse(2)
+                for (w = 0; w < width; w++)
+                {
+                    for (h = 0; h < height; h++)
+                    {
+                        tempIndex = index;
+                        while (tempIndex < kend)
+                        {
+                            if (kend - tempIndex >= 4 && tempIndex % 4 == 0)
+                            {
+                                kVals = _mm_load_ps(&kernel->values[tempIndex]);
+                                imgVals = _mm_setr_ps(image[w + x][h + y][cNumbs[tempIndex]],
+                                                      image[w + x][h + y][cNumbs[tempIndex + 1]],
+                                                      image[w + x][h + y][cNumbs[tempIndex + 2]],
+                                                      image[w + x][h + y][cNumbs[tempIndex + 3]]);
+
+                                kVals = _mm_mul_ps(kVals, imgVals);
+                                // seems that result needs to be defined here otherwise output is wrong
+                                float result[4];
+                                _mm_storeu_ps(result, kVals);
+                                output[m][h][w] += result[0];
+                                output[m][h][w] += result[1];
+                                output[m][h][w] += result[2];
+                                output[m][h][w] += result[3];
+                                tempIndex += 4;
+                            }
+                            else
+                            {
+                                output[m][h][w] += image[w + x][h + y][cNumbs[tempIndex]] * kernel->values[tempIndex];
+                                tempIndex++;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/* the fast version of sparse convolution written by the team */
 void team_conv_sparse(float ***image, struct sparse_matrix ***kernels,
                           float ***output, int width, int height,
                           int nchannels, int nkernels, int kernel_order)
@@ -701,7 +770,7 @@ int main(int argc, char **argv)
 
         gettimeofday(&start_time2, NULL);
 
-        multichannel_conv_sparse(image, sparse_kernels, outputNormal, width,
+        team_conv_sparse_if(image, sparse_kernels, outputNormal, width,
                          height, nchannels, nkernels, kernel_order);
         gettimeofday(&stop_time2, NULL);
         mul_time = (stop_time.tv_sec - start_time.tv_sec) * 1000000L +
@@ -709,11 +778,13 @@ int main(int argc, char **argv)
         printf("team_conv_sparse time: %lld microseconds\n", mul_time);
         mul_time2 = (stop_time2.tv_sec - start_time2.tv_sec) * 1000000L +
                     (stop_time2.tv_usec - start_time2.tv_usec);
-        printf("multichannel_conv_sparse time: %lld microseconds\n", mul_time2);
+        printf("team_conv_sparse_if time: %lld microseconds\n", mul_time2);
 
         printf("Checking team_conv_sparse result:\n");
         check_result(output, control_output, nkernels, width, height);
-        printf("difference between team_conv_sparse multichannel_conv_sparse %lld\n", mul_time - mul_time2);
+        printf("Checking team_conv_sparse_if result:\n");
+        check_result(outputNormal, control_output, nkernels, width, height);
+        printf("difference between team_conv_sparse team_conv_sparse_if %lld\n", mul_time - mul_time2);
     }
     else
     { // we're working on a dense matrix
