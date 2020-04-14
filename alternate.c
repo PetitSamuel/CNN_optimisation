@@ -581,7 +581,7 @@ void team_conv_sparse_test(float ***image, struct sparse_matrix ***kernels,
                 cNumbs = kernel->channel_numbers;
                 
                 // this seemed to sometimes make it faster, try for different (probably high) width/heights
-                #pragma omp parallel for if(width >= 100 && nKernels >= 128)
+                #pragma omp parallel for if(width >= 100 && nkernels >= 128)
                 for (w = 0; w < width; w++)
                 {
                     for (h = 0; h < height; h++)
