@@ -563,13 +563,12 @@ void team_conv_sparse(float ***image, struct sparse_matrix ***kernels,
     struct sparse_matrix *kernel;
     int kernelSize = kernel_order * kernel_order;
     int tempIndex, kend;
-    float *cachedImg;
     int *cNumbs;
     __m128 kVals, imgVals;
 
 // in my testing schedule static can be fast than collapse (3) but on average & with big inputs collapse is faster
 // i've experimented making specific variables shared / private this combination seemed to work best
-#pragma omp parallel for private(m, x, y, index, kend, w, h, tempIndex, kVals, imgVals) shared(image, kernels, output, cachedImg, cNumbs,kernel) collapse(3)
+#pragma omp parallel for private(m, x, y, index, kend, w, h, tempIndex, kVals, imgVals, cNumbs,kernel) shared(image, kernels, output) collapse(3)
     for (m = 0; m < nkernels; m++)
     {
         for (x = 0; x < kernel_order; x++)
@@ -587,17 +586,16 @@ void team_conv_sparse(float ***image, struct sparse_matrix ***kernels,
                 {
                     for (h = 0; h < height; h++)
                     {
-                        cachedImg = image[w + x][h + y];
                         tempIndex = index;
                         while (tempIndex < kend)
                         {
                             if (kend - tempIndex >= 4 && tempIndex % 4 == 0)
                             {
                                 kVals = _mm_load_ps(&kernel->values[tempIndex]);
-                                imgVals = _mm_setr_ps(cachedImg[cNumbs[tempIndex]],
-                                                      cachedImg[cNumbs[tempIndex + 1]],
-                                                      cachedImg[cNumbs[tempIndex + 2]],
-                                                      cachedImg[cNumbs[tempIndex + 3]]);
+                                imgVals = _mm_setr_ps(image[w + x][h + y][cNumbs[tempIndex]],
+                                                      image[w + x][h + y][cNumbs[tempIndex + 1]],
+                                                      image[w + x][h + y][cNumbs[tempIndex + 2]],
+                                                      image[w + x][h + y][cNumbs[tempIndex + 3]]);
 
                                 kVals = _mm_mul_ps(kVals, imgVals);
                                 // seems that result needs to be defined here otherwise output is wrong
@@ -611,7 +609,7 @@ void team_conv_sparse(float ***image, struct sparse_matrix ***kernels,
                             }
                             else
                             {
-                                output[m][h][w] += cachedImg[cNumbs[tempIndex]] * kernel->values[tempIndex];
+                                output[m][h][w] += image[w + x][h + y][cNumbs[tempIndex]] * kernel->values[tempIndex];
                                 tempIndex++;
                             }
                         }
