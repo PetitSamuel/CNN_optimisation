@@ -552,7 +552,7 @@ void multichannel_conv_sparse(float ***image, struct sparse_matrix ***kernels,
 }
 
 /* the fast version of sparse convolution written by the team */
-void team_conv_sparse_if(float ***image, struct sparse_matrix ***kernels,
+void team_conv_sparse_test(float ***image, struct sparse_matrix ***kernels,
                           float ***output, int width, int height,
                           int nchannels, int nkernels, int kernel_order)
 {
@@ -581,7 +581,7 @@ void team_conv_sparse_if(float ***image, struct sparse_matrix ***kernels,
                 cNumbs = kernel->channel_numbers;
                 
                 // this seemed to sometimes make it faster, try for different (probably high) width/heights
-                //#pragma omp parallel for collapse(2)
+                #pragma omp parallel for
                 for (w = 0; w < width; w++)
                 {
                     for (h = 0; h < height; h++)
@@ -637,7 +637,7 @@ void team_conv_sparse(float ***image, struct sparse_matrix ***kernels,
 
 // in my testing schedule static can be fast than collapse (3) but on average & with big inputs collapse is faster
 // i've experimented making specific variables shared / private this combination seemed to work best
-#pragma omp parallel for if(nkernels == 128 && height >= 100 || nkernels >= 256 || height >= 150) private(m, x, y, kernel,index, kend, w, h, tempIndex, kVals, imgVals, cNumbs) shared(image, kernels, output) collapse(3)
+#pragma omp parallel for if(nkernels == 128 && height >= 100 || nkernels >= 256 || height >= 150) private(m, x, y, kernel,index, kend, w, h, tempIndex, kVals, imgVals, cNumbs) shared(image, kernels, output) schedule(static,1)
     for (m = 0; m < nkernels; m++)
     {
         for (x = 0; x < kernel_order; x++)
@@ -770,7 +770,7 @@ int main(int argc, char **argv)
 
         gettimeofday(&start_time2, NULL);
 
-        team_conv_sparse_if(image, sparse_kernels, outputNormal, width,
+        team_conv_sparse_test(image, sparse_kernels, outputNormal, width,
                          height, nchannels, nkernels, kernel_order);
         gettimeofday(&stop_time2, NULL);
         mul_time = (stop_time.tv_sec - start_time.tv_sec) * 1000000L +
@@ -778,13 +778,13 @@ int main(int argc, char **argv)
         printf("team_conv_sparse time: %lld microseconds\n", mul_time);
         mul_time2 = (stop_time2.tv_sec - start_time2.tv_sec) * 1000000L +
                     (stop_time2.tv_usec - start_time2.tv_usec);
-        printf("team_conv_sparse_if time: %lld microseconds\n", mul_time2);
+        printf("team_conv_sparse_test time: %lld microseconds\n", mul_time2);
 
         printf("Checking team_conv_sparse result:\n");
         check_result(output, control_output, nkernels, width, height);
-        printf("Checking team_conv_sparse_if result:\n");
+        printf("Checking team_conv_sparse_test result:\n");
         check_result(outputNormal, control_output, nkernels, width, height);
-        printf("difference between team_conv_sparse team_conv_sparse_if %lld\n", mul_time - mul_time2);
+        printf("difference between team_conv_sparse team_conv_sparse_test %lld\n", mul_time - mul_time2);
     }
     else
     { // we're working on a dense matrix
