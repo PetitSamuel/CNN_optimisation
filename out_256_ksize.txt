@@ -1,0 +1,70 @@
+Running ./a.out 20 20 1 16 16 20...
+team_conv_sparse time: 30283 microseconds
+team_conv_sparse_if time: 345 microseconds
+Checking team_conv_sparse result:
+COMMENT: sum of absolute differences (0.000000)  within acceptable range (0.062500)
+Checking team_conv_sparse_if result:
+COMMENT: sum of absolute differences (0.000000)  within acceptable range (0.062500)
+difference between team_conv_sparse team_conv_sparse_if 29938
+Running ./a.out 20 20 1 32 32 20...
+team_conv_sparse time: 18353 microseconds
+team_conv_sparse_if time: 1051 microseconds
+Checking team_conv_sparse result:
+COMMENT: sum of absolute differences (0.000000)  within acceptable range (0.062500)
+Checking team_conv_sparse_if result:
+COMMENT: sum of absolute differences (0.000000)  within acceptable range (0.062500)
+difference between team_conv_sparse team_conv_sparse_if 17302
+Running ./a.out 20 20 3 32 32 20...
+team_conv_sparse time: 24889 microseconds
+team_conv_sparse_if time: 3238 microseconds
+Checking team_conv_sparse result:
+Checking team_conv_sparse_if result:
+COMMENT: sum of absolute differences (0.000000)  within acceptable range (0.062500)
+difference between team_conv_sparse team_conv_sparse_if 21651
+Running ./a.out 20 20 3 128 128 20...
+team_conv_sparse time: 26806 microseconds
+team_conv_sparse_if time: 31290 microseconds
+Checking team_conv_sparse result:
+COMMENT: sum of absolute differences (0.000000)  within acceptable range (0.062500)
+Checking team_conv_sparse_if result:
+COMMENT: sum of absolute differences (0.000000)  within acceptable range (0.062500)
+difference between team_conv_sparse team_conv_sparse_if -4484
+Running ./a.out 20 20 5 256 256 200...
+team_conv_sparse time: 54621 microseconds
+team_conv_sparse_if time: 28354 microseconds
+Checking team_conv_sparse result:
+COMMENT: sum of absolute differences (0.000000)  within acceptable range (0.062500)
+Checking team_conv_sparse_if result:
+COMMENT: sum of absolute differences (0.000000)  within acceptable range (0.062500)
+difference between team_conv_sparse team_conv_sparse_if 26267
+Running ./a.out 20 20 5 512 512 20...
+team_conv_sparse time: 93320 microseconds
+team_conv_sparse_if time: 577832 microseconds
+Checking team_conv_sparse result:
+COMMENT: sum of absolute differences (0.000000)  within acceptable range (0.062500)
+Checking team_conv_sparse_if result:
+COMMENT: sum of absolute differences (0.000000)  within acceptable range (0.062500)
+difference between team_conv_sparse team_conv_sparse_if -484512
+Running ./a.out 100 100 5 512 512 20...
+team_conv_sparse time: 2856537 microseconds
+team_conv_sparse_if time: 57036641 microseconds
+Checking team_conv_sparse result:
+COMMENT: sum of absolute differences (0.000000)  within acceptable range (0.062500)
+Checking team_conv_sparse_if result:
+COMMENT: sum of absolute differences (0.000000)  within acceptable range (0.062500)
+difference between team_conv_sparse team_conv_sparse_if -54180104
+Running ./a.out 300 300 5 32 32 20...
+team_conv_sparse time: 176797 microseconds
+team_conv_sparse_if time: 1177828 microseconds
+Checking team_conv_sparse result:
+Checking team_conv_sparse_if result:
+COMMENT: sum of absolute differences (0.000000)  within acceptable range (0.062500)
+difference between team_conv_sparse team_conv_sparse_if -1001031
+Running ./a.out 150 150 5 128 128 20...
+team_conv_sparse time: 310979 microseconds
+team_conv_sparse_if time: 2665994 microseconds
+Checking team_conv_sparse result:
+COMMENT: sum of absolute differences (0.000000)  within acceptable range (0.062500)
+Checking team_conv_sparse_if result:
+COMMENT: sum of absolute differences (0.000000)  within acceptable range (0.062500)
+difference between team_conv_sparse team_conv_sparse_if -2355015
