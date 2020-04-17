@@ -1,4 +1,9 @@
+# CS3014 - Concurrent Systems
+The assignment consistend of optimizing as well as possible the team_conv_sparse function.
+It is ran against the method multichannel_conv_sparse to compare time differences.
+
 # (╯°□°）╯︵ ┻━┻      ┬─┬ ノ( ゜-゜ノ)
+## Information from the assignment description
 CNN: acyclic graph of "layers"
 Layers are selected from list of std layers
 
@@ -17,9 +22,8 @@ CNN convolution is done with different conv. kernels (ie multichannel)
     - number of kernels: 32..2048 (always powers of 2)
     - nz_ratio: 20..1000
 
-# Q: is pragma thread count optimised by default ?
-
-# Pragma 
+# Useful to Know
+## Pragma 
 - vars are shared by default
 - critical keyword for mutual exclusion of vars
 - private(var_name) keyword for local copy
@@ -39,7 +43,7 @@ like:
 #pragma omp parallel for if ( n > 128 )
 ```
 
-# SSE
+## SSE
 Library w/ operations such as loading data from memory (aligned/unaligned), or operations such as add/sub, multiply, min max... 
 Also supports comparisons
 
