@@ -708,13 +708,13 @@ int main(int argc, char **argv)
         printf("team_conv_sparse time: %lld microseconds\n", mul_time);
         mul_time2 = (stop_time2.tv_sec - start_time2.tv_sec) * 1000000L +
                     (stop_time2.tv_usec - start_time2.tv_usec);
-        printf("team_conv_sparse_test time: %lld microseconds\n", mul_time2);
+        printf("multichannel_conv_sparse time: %lld microseconds\n", mul_time2);
 
         printf("Checking team_conv_sparse result:\n");
         check_result(output, control_output, nkernels, width, height);
         printf("Checking team_conv_sparse_test result:\n");
         check_result(outputNormal, control_output, nkernels, width, height);
-        printf("difference between team_conv_sparse team_conv_sparse_test %lld\n", mul_time - mul_time2);
+        printf("difference between team_conv_sparse multichannel_conv_sparse %lld\n", mul_time - mul_time2);
     }
     else
     { // we're working on a dense matrix
