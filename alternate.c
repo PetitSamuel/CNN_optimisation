@@ -568,7 +568,7 @@ void team_conv_sparse(float ***image, struct sparse_matrix ***kernels,
 
 // in my testing schedule static can be fast than collapse (3) but on average & with big inputs collapse is faster
 // i've experimented making specific variables shared / private this combination seemed to work best
-#pragma omp parallel for if(nkernels >= 128 || height >= 200) private(m, x, y, kernel,index, kend, w, h, tempIndex, kVals, imgVals, cNumbs) shared(image, kernels, output) schedule(static,1)
+#pragma omp parallel for if(nkernels >= 128 && height >= 75 || height >= 200 || nkernels > 256 && height >= 30) private(m, x, y, kernel,index, kend, w, h, tempIndex, kVals, imgVals, cNumbs) shared(image, kernels, output) schedule(static,1)
     for (m = 0; m < nkernels; m++)
     {
         for (x = 0; x < kernel_order; x++)
@@ -712,9 +712,7 @@ int main(int argc, char **argv)
 
         printf("Checking team_conv_sparse result:\n");
         check_result(output, control_output, nkernels, width, height);
-        printf("Checking team_conv_sparse_test result:\n");
-        check_result(outputNormal, control_output, nkernels, width, height);
-        printf("difference between team_conv_sparse multichannel_conv_sparse %lld\n", mul_time - mul_time2);
+        printf("difference between team_conv_sparse multichannel_conv_sparse %lld\n\n", mul_time - mul_time2);
     }
     else
     { // we're working on a dense matrix
