@@ -53,5 +53,5 @@ Also supports comparisons
   To submit the lab, please send me an email with the code, the report, and
   your slides as attachments. Please make sure that your email has a subject
   line with the following:
-  HEDGEHOD Samuel Petit Luke Hackett
+  HEDGEHOD Samuel Petit, Luke Hackett
 ```
