@@ -213,12 +213,13 @@ void partA_vectorized4(float *restrict a, float *restrict b,
   __m128 mask = _mm_setr_ps(-1, 1, -1, 1);
   for(int i = 0; i < 2048 / 4; i++) {
     __m128 out = _mm_setzero_ps();
-
+      __m128 bvi = bv[i];
+      __m128 cvi = cv[i];
       __m128 bsLHS = _mm_moveldup_ps(bv[i]);
       __m128 mult = _mm_mul_ps(bsLHS, cv[i]);
 
       __m128 bsRHS = _mm_movehdup_ps(bv[i]);
-      __m128 csRHS = _mm_shuffle_ps(cv[i], cv[i], _MM_SHUFFLE(2, 3, 1, 0));
+      __m128 csRHS = _mm_shuffle_ps(cv[i], cv[i], _MM_SHUFFLE(2, 3, 0, 1));
       __m128 mult2 = _mm_mul_ps(bsRHS, csRHS);
       mult2 = _mm_mul_ps(mult2, mask);
       av[i] = _mm_add_ps(mult, mult2);
