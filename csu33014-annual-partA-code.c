@@ -96,9 +96,9 @@ float partA_vectorized1(float *restrict a, float *restrict b,
   sumv = _mm_hadd_ps(sumv, sumv);
 
   // retrieve sum of vectorized code
-  float r;
-  _mm_store_ps(&r, sumv);
-  return sum + r;
+  float r[4];
+  _mm_store_ps(r, sumv);
+  return sum + r[0];
 }
 
 /******************* routine 2 ***********************/
@@ -294,36 +294,30 @@ void partA_routine6(float *restrict a, float *restrict b,
 void partA_vectorized6(float *restrict a, float *restrict b,
                        float *restrict c)
 {
-  __m128 *av = (__m128 *)a;
-  __m128 *bv = (__m128 *)b;
-  __m128 *cv = (__m128 *)c;
-  /*
-  // replace the following code with vectorized code
-  
-  __m128 mask = _mm_setr_ps(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0);
-  __m128 currentv;
-  for (int i = 0; i < 1020; i++)
-  {
-    currentv = _mm_setzero_ps();
-    float sum = 0.0;
-
-    __m128 mult = _mm_mul_ps(bv[i], cv[0]);
-    mult = _mm_and_ps(mult, mask);
-    mult = _mm_hadd_ps(mult, mult);
-    mult = _mm_hadd_ps(mult, mult);
-    _mm_store_ps(&sum, mult);
-    a[i + 1] = sum;
-  }
-  a[1023] = 0.0;
-  */
+  // load 3 values from c, loading a 0 at the end such to make multiplication always yeild 0 in the 4th value
+  __m128 cv = _mm_setr_ps(c[0], c[1], c[2], 0);
 
   a[0] = 0.0;
+  a[1023] = 0.0;
+
+  // we could compute multiple values to write to a at a time here but
+  // this would be as efficient as looping and doing them one at a time if not less efficient
   for (int i = 0; i < 1022; i++)
   {
-    __m128 mult = _mm_mul_ps(bv[i], cv[0]);
+    // load 4 values starting at address b[i]
+    __m128 bv = _mm_loadu_ps(&b[i]);
+    // multiply with the 3 c values (4th value being 0 thus giving 0 after the multiplication & not impacting the sum)
+    __m128 mult = _mm_mul_ps(bv, cv);
+
+    // sum values together
+    mult = _mm_hadd_ps(mult, mult);
+    mult = _mm_hadd_ps(mult, mult);
+
+    // extract values from SSE variable into float array
     float r[4];
-    _mm_store_ps(&r, mult);
-    a[i + 1] = r[0] + r[1] + r[2];
+    _mm_store_ps(r, mult);
+
+    // each entry in r contains the total sum thus it is the value to write to the output.
+    a[i + 1] = r[0];
   }
-  a[1023] = 0.0;
 }
