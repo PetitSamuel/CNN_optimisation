@@ -207,24 +207,35 @@ void partA_routine4(float *restrict a, float *restrict b,
 void partA_vectorized4(float *restrict a, float *restrict b,
                        float *restrict c)
 {
-  __m128 *av = (__m128 *)a;   
+  __m128 *av = (__m128 *)a;
   __m128 *bv = (__m128 *)b;
   __m128 *cv = (__m128 *)c;
   __m128 mask = _mm_setr_ps(-1, 1, -1, 1);
-  for(int i = 0; i < 2048 / 4; i++) {
-    __m128 out = _mm_setzero_ps();
-      __m128 bvi = bv[i];
-      __m128 cvi = cv[i];
-      __m128 bsLHS = _mm_moveldup_ps(bv[i]);
-      __m128 mult = _mm_mul_ps(bsLHS, cv[i]);
+  for (int i = 0; i < 512; i++)
+  {
+    // CONSIDERING : left side of multiplications (b[i] * c[i] and b[i+2]c[i+1])
+    // store odd indexed values in even ones for b values
+    __m128 left = _mm_moveldup_ps(bv[i]);
 
-      __m128 bsRHS = _mm_movehdup_ps(bv[i]);
-      __m128 csRHS = _mm_shuffle_ps(cv[i], cv[i], _MM_SHUFFLE(2, 3, 0, 1));
-      __m128 mult2 = _mm_mul_ps(bsRHS, csRHS);
-      mult2 = _mm_mul_ps(mult2, mask);
-      av[i] = _mm_add_ps(mult, mult2);
+    // left side multiplication doesn't require to rearange values in c
+    left = _mm_mul_ps(left, cv[i]);
+
+    // CONSIDERING : right side of multiplications (b[i+1]c[i+1] and b[i+1]c[i])
+    // store even indexed values in odd ones for b values
+    __m128 bRight = _mm_movehdup_ps(bv[i]);
+
+    // re arrange values in C with order : i + 1, i, i + 3, i + 2
+    __m128 cRight = _mm_shuffle_ps(cv[i], cv[i], _MM_SHUFFLE(2, 3, 0, 1));
+
+    // multiply newly arranged b and c values
+    __m128 right = _mm_mul_ps(bRight, cRight);
+
+    // change the sign of odd indexed values of the right side multiplication as these are subtracted
+    right = _mm_mul_ps(right, mask);
+
+    // add into output
+    av[i] = _mm_add_ps(left, right);
   }
-  
 }
 
 /********************* routine 5 ***********************/
@@ -242,8 +253,21 @@ void partA_routine5(unsigned char *restrict a,
 void partA_vectorized5(unsigned char *restrict a,
                        unsigned char *restrict b, int size)
 {
-  // replace the following code with vectorized code
-  for (int i = 0; i < size; i++)
+  int i;
+  // cast a and b into a pair of __m128i pointers.
+  __m128i *av = (__m128i *)a;
+  __m128i *bv = (__m128i *)b;
+
+  // copy values from b into a, 16 at a time
+  for (i = 0; i < size / 16; i++)
+  {
+    av[i] = bv[i];
+  }
+
+  // align back i with non vectorised code
+  i *= 16;
+  // copy size % 16 remaining values
+  for (; i < size; i++)
   {
     a[i] = b[i];
   }
@@ -270,16 +294,36 @@ void partA_routine6(float *restrict a, float *restrict b,
 void partA_vectorized6(float *restrict a, float *restrict b,
                        float *restrict c)
 {
+  __m128 *av = (__m128 *)a;
+  __m128 *bv = (__m128 *)b;
+  __m128 *cv = (__m128 *)c;
+  /*
   // replace the following code with vectorized code
-  a[0] = 0.0;
-  for (int i = 1; i < 1023; i++)
+  
+  __m128 mask = _mm_setr_ps(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0);
+  __m128 currentv;
+  for (int i = 0; i < 1020; i++)
   {
+    currentv = _mm_setzero_ps();
     float sum = 0.0;
-    for (int j = 0; j < 3; j++)
-    {
-      sum = sum + b[i + j - 1] * c[j];
-    }
-    a[i] = sum;
+
+    __m128 mult = _mm_mul_ps(bv[i], cv[0]);
+    mult = _mm_and_ps(mult, mask);
+    mult = _mm_hadd_ps(mult, mult);
+    mult = _mm_hadd_ps(mult, mult);
+    _mm_store_ps(&sum, mult);
+    a[i + 1] = sum;
+  }
+  a[1023] = 0.0;
+  */
+
+  a[0] = 0.0;
+  for (int i = 0; i < 1022; i++)
+  {
+    __m128 mult = _mm_mul_ps(bv[i], cv[0]);
+    float r[4];
+    _mm_store_ps(&r, mult);
+    a[i + 1] = r[0] + r[1] + r[2];
   }
   a[1023] = 0.0;
 }
