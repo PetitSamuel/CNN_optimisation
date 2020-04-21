@@ -56,6 +56,11 @@ int number_within_k_degrees(struct person *start, int total_people, int k)
   return count;
 }
 
+/*
+  Custom implementation for a queue, required by my
+  BFS algorithm.
+  It is implemented using an array of persons with a fixed capacity.
+*/
 struct Queue
 {
   int front, rear, size;
@@ -63,7 +68,8 @@ struct Queue
   struct person *array;
 };
 
-struct Queue *createQueue(unsigned capacity)
+// Return pointer to a new empty queue with given capacity.
+struct Queue *newQueue(unsigned capacity)
 {
   struct Queue *queue = (struct Queue *)malloc(sizeof(struct Queue));
   queue->capacity = capacity;
@@ -74,43 +80,44 @@ struct Queue *createQueue(unsigned capacity)
   return queue;
 }
 
-int isFull(struct Queue *queue)
+// Helper method to check if provided queue is full (ie queue size == capacity)
+int isFull(struct Queue *q)
 {
-  return (queue->size == queue->capacity);
+  return (q->size == q->capacity);
 }
 
-int isEmpty(struct Queue *queue)
+// Helper method to check if provided queue is empty.
+int isEmpty(struct Queue *q)
 {
-  return (queue->size == 0);
+  return (q->size == 0);
 }
 
-void enqueue(struct Queue *queue, struct person item)
+// Add an item to a queue
+void enqueue(struct Queue *q, struct person p)
 {
-  if (isFull(queue))
+  if (isFull(q))
   {
-    // cannot add to a full queue
-    printf("TRIED TO ADD TO A QUEUE AT FULL CAPACITY\n");
+    printf("ERROR: TRIED TO ADD TO A QUEUE AT FULL CAPACITY\n");
     exit(1);
   }
 
-  queue->rear = (queue->rear + 1) % queue->capacity;
-  queue->array[queue->rear] = item;
-  queue->size = queue->size + 1;
+  q->rear = (q->rear + 1) % q->capacity;
+  q->array[q->rear] = p;
+  q->size = q->size + 1;
 }
 
-// Function to remove an item from queue.
-// It changes front and size
-struct person dequeue(struct Queue *queue)
+// Remove an item from a queue
+struct person dequeue(struct Queue *q)
 {
-  if (isEmpty(queue))
+  if (isEmpty(q))
   {
-    printf("TRIED TO ADD TO A QUEUE AT FULL CAPACITY\n");
+    printf("ERROR: TRIED TO ADD TO A QUEUE AT FULL CAPACITY\n");
     exit(1);
   }
-  struct person item = queue->array[queue->front];
-  queue->front = (queue->front + 1) % queue->capacity;
-  queue->size = queue->size - 1;
-  return item;
+  struct person p = q->array[q->front];
+  q->front = (q->front + 1) % q->capacity;
+  q->size = q->size - 1;
+  return p;
 }
 
 // computes the number of people within k degrees of the start person;
@@ -119,26 +126,36 @@ int less_redundant_number_within_k_degrees(struct person *start,
                                            int total_people, int k)
 {
   bool *visited = malloc(sizeof(bool) * total_people);
+  // make sure all values are set to false
   for (int i = 0; i < total_people; i++)
   {
     visited[i] = false;
   }
 
-  struct Queue *queue = createQueue(total_people);
+  // allocate space for the queue, setting the max capacity to the total people - 1
+  // when item is created, queue start person
+  struct Queue *queue = newQueue(total_people - 1);
   int pi = person_get_index(start);
 
+  // Set start person to visited and add start person to queue.
   visited[pi] = true;
   enqueue(queue, *start);
+
+  // Define counter variable (ints)
   int count = 1;
   int currentDepth = 0,
       elementsToDepthIncrease = 1,
       nextElementsToDepthIncrease = 0;
 
+  // Execute BFS
   while (!isEmpty(queue))
   {
+    // obtain current person from queue
     struct person current = dequeue(queue);
     int num_known = person_get_num_known(&current);
 
+    // Go through all acquaintances, setting them to visited & adding to queue if not visited previously
+    // increment count on the same condition & if condition fails decrement the depthIncrease counter.
     for (int i = 0; i < num_known; i++)
     {
       struct person *acquaintance = person_get_acquaintance(&current, i);
@@ -155,7 +172,12 @@ int less_redundant_number_within_k_degrees(struct person *start,
         nextElementsToDepthIncrease--;
       }
     }
-
+    /*
+      Add number of aquaintances to nextDepthIncrease counter.
+      If the following loop iteration will be of a new depth, increase currentDepth variable & 
+      set counter variables for depth increments.
+      If depth goes beyond k, return current count.
+    */
     nextElementsToDepthIncrease += num_known;
     if (--elementsToDepthIncrease == 0)
     {
@@ -176,27 +198,48 @@ int parallel_number_within_k_degrees(struct person *start,
 {
   bool *visited = malloc(sizeof(bool) * total_people);
 
-  #pragma omp parallel for private(i) schedule(static,1)
+  // make sure all values are set to false
+  #pragma omp parallel for shared(visited) schedule(static, 1)
   for (int i = 0; i < total_people; i++)
   {
     visited[i] = false;
   }
+  struct Queue *queue;
+  #pragma omp parallel
+  {
+    // allocate space for the queue, setting the max capacity to the total people - 1
+    // when item is created, queue start person
+    #pragma omp task
+    {
+      queue = newQueue(total_people - 1);
+      enqueue(queue, *start);
+    }
+    // set start person to visited
+    #pragma omp task
+    {
+      visited[person_get_index(start)] = true;
+    }
+  }
 
-  struct Queue *queue = createQueue(total_people);
-
-  visited[person_get_index(start)] = true;
-  enqueue(queue, *start);
+  /*
+    Define other variable (ints) outside tasks as they definitely don't require
+    much work and would be required outside of the task scope anyways.
+  */
   int count = 1;
   int currentDepth = 0,
       elementsToDepthIncrease = 1,
       nextElementsToDepthIncrease = 0;
 
+  // Execute BFS
   while (!isEmpty(queue))
   {
+    // obtain current person from queue
     struct person current = dequeue(queue);
     int num_known = person_get_num_known(&current);
 
-  #pragma omp parallel for private(i) public(visited, count, nextElementsToDepthIncrease) schedule(static,1)
+    // Go through all acquaintances, setting them to visited & adding to queue if not visited previously
+    // increment count on the same condition & if condition fails decrement the depthIncrease counter.
+    #pragma omp parallel for shared(queue, count, nextElementsToDepthIncrease, visited) schedule(static, 1)
     for (int i = 0; i < num_known; i++)
     {
       struct person *acquaintance = person_get_acquaintance(&current, i);
@@ -204,16 +247,28 @@ int parallel_number_within_k_degrees(struct person *start,
 
       if (!visited[pi])
       {
-        visited[pi] = true;
+        #pragma omp critical(queue_item)
+        {
+          enqueue(queue, *acquaintance);
+        }
+
+        #pragma omp atomic
         count++;
-        enqueue(queue, *acquaintance);
+        visited[pi] = true;
       }
       else
       {
+        #pragma omp atomic
         nextElementsToDepthIncrease--;
       }
     }
 
+    /*
+      Add number of aquaintances to nextDepthIncrease counter.
+      If the following loop iteration will be of a new depth, increase currentDepth variable &
+      set counter variables for depth increments.
+      If depth goes beyond k, return current count.
+    */
     nextElementsToDepthIncrease += num_known;
     if (--elementsToDepthIncrease == 0)
     {
