@@ -1,5 +1,5 @@
 all: csu33014-annual-partB-code.c  csu33014-annual-partB-main.c  csu33014-annual-partB-person.c csu33014-annual-partB-code.h  csu33014-annual-partB-person.h
-	gcc -O2 -o graph csu33014-annual-partB-code.c  csu33014-annual-partB-main.c  csu33014-annual-partB-person.c
+	gcc -O2 -o graph -fopenmp -msse4 csu33014-annual-partB-code.c  csu33014-annual-partB-main.c  csu33014-annual-partB-person.c
 
 debug: csu33014-annual-partB-code.c  csu33014-annual-partB-main.c  csu33014-annual-partB-person.c csu33014-annual-partB-code.h  csu33014-annual-partB-person.h
 	gcc -g -o graph csu33014-annual-partB-code.c  csu33014-annual-partB-main.c  csu33014-annual-partB-person.c
